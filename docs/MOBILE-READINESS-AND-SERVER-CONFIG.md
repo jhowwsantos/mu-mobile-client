@@ -31,9 +31,9 @@ The iOS job currently builds an **unsigned iOS Simulator artifact** for CI valid
 
 ## Client adaptation in progress
 
-`Client.Main/Networking/MobileBackendClient.cs` now provides a separate HTTP/Socket.IO transport foundation for the existing web backend: account registration/login, character listing/creation, authenticated realtime connection, character selection, movement, and attack events. `MuOnlineSettings.BackendBaseUrl` points at the identified Render service. The legacy MU Season 6 TCP transport remains separate and is not a substitute for this adapter.
+`Client.Main/Networking/MobileBackendClient.cs` provides HTTP/Socket.IO methods for account login/registration, character listing/creation, monster listing, realtime connection, character selection, movement, and attack events. `MuOnlineSettings.BackendBaseUrl` points at the identified Render service. `UseMobileBackend` is enabled in the app configuration, and startup validation now checks the HTTP(S) backend URL instead of requiring a native TCP endpoint in this mode.
 
-This transport layer is **not yet wired into the login/character/game scenes** and has not been build-tested in CI. Therefore it must not be described as a playable integration yet. The next implementation step is to route the native client flow through this adapter, map the server character/world state to the existing renderer, and handle the server events in the game loop. The current backend only has a starter world/combat model, so it will not provide full classic MU functionality without additional server work.
+The login screen is now wired to authenticate against the web backend, retrieve the account character list, connect to Socket.IO, select the first existing character, and request monster state. This is an initial connectivity/integration path, **not yet a playable 3D game loop**: character creation UI, rendering server state, local movement synchronization, combat feedback, and full scene transitions are not wired yet. The backend currently has a starter world/combat model, so it does not provide full classic MU functionality without additional server work. No CI build result has confirmed compilation of these changes.
 
 ## Remaining compatibility gate
 
