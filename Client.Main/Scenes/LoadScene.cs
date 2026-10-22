@@ -252,9 +252,12 @@ namespace Client.Main.Scenes
             catch (Exception ex)
             {
                 Debug.WriteLine($"[LoadScene] Critical error: {ex}");
-                UpdateProgress(p => p.StatusText = $"Error: {ex.Message}");
-                await Task.Delay(5000, CancellationToken.None);
-                await TransitionToNextSceneAsync(CancellationToken.None);
+                UpdateProgress(p =>
+                {
+                    p.StatusText = $"Loading failed: {ex.Message}";
+                    p.IsDownloading = false;
+                });
+                // Keep the error visible. Do not enter login/game scenes without required assets.
             }
         }
 
