@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-ios-device:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -33,10 +33,11 @@ jobs:
             ln -s "$FREETYPE_LIB/libfreetype.dylib" "$FREETYPE_LIB/libfreetype6.dylib"
           fi
 
-      - name: Install Wine and Winetricks for MonoGame shaders
+      - name: Install Wine from maintained tap for MonoGame shaders
         shell: bash
         run: |
-          brew install --cask wine-stable
+          brew tap philberthfz/wine
+          brew install --cask philberthfz/wine/wine-stable
           brew install winetricks
           WINE_PREFIX="$HOME/.wine-mgfxc"
           mkdir -p "$WINE_PREFIX"
