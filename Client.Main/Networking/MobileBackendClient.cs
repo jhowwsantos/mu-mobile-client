@@ -99,7 +99,7 @@ namespace Client.Main.Networking
                 throw new InvalidOperationException("Log in before connecting to the game socket.");
 
             await DisconnectRealtimeAsync().ConfigureAwait(false);
-            _socket = new SocketIO(_baseUri, new SocketIOOptions
+            _socket = new SocketIO(_baseUri.AbsoluteUri, new SocketIOOptions
             {
                 Auth = new { token = _token },
                 Reconnection = true,
