@@ -260,54 +260,50 @@ namespace Client.Main.Scenes
 
         private async Task DownloadAndExtractAssetsAsync(string localZip, string extractPath, CancellationToken ct)
         {
-            string[] urls = { 
-            //    _dataPathUrl, 
-                Constants.DefaultDataPathUrl
-            };
-            Exception lastError = null;
-
-            foreach (var url in urls.Where(u => !string.IsNullOrEmpty(u)))
+            // Never silently download an unrelated or unverified game archive.
+            // Configure Constants.DataPathUrl only after verifying the archive matches this client
+            // and is hosted at a trusted HTTPS origin.
+            string url = _dataPathUrl;
+            if (string.IsNullOrWhiteSpace(url))
             {
-                try
-                {
-                    UpdateProgress(p =>
-                    {
-                        p.StatusText = "Connecting...";
-                        p.IsDownloading = true;
-                        p.Progress = 0;
-                    });
-
-                    // Clear speed samples for fresh calculation
-                    while (_speedSamples.TryDequeue(out _)) { }
-
-                    await DownloadFileAsync(url, localZip, ct);
-
-                    // Verify download completed correctly
-                    if (!File.Exists(localZip))
-                        throw new IOException("Download failed - file not created");
-
-                    var fileInfo = new FileInfo(localZip);
-                    if (fileInfo.Length == 0)
-                        throw new IOException("Download failed - file is empty");
-
-                    lastError = null;
-                    break;
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    lastError = ex;
-                    Debug.WriteLine($"[LoadScene] Download failed from {url}: {ex.Message}");
-                    SafeDeleteFile(localZip);
-                    UpdateProgress(p => p.StatusText = "Trying alternative source...");
-                    await Task.Delay(RetryDelayMs, ct);
-                }
+                throw new InvalidOperationException(
+                    "Game data is not configured. Bundle the required assets with the app or configure Constants.DataPathUrl to a verified HTTPS archive.");
             }
 
-            if (lastError != null)
-                throw new InvalidOperationException("Failed to download from all sources.", lastError);
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var assetUri) ||
+                assetUri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidOperationException(
+                    "The game-data URL must be a valid HTTPS URL. HTTP and unverified fallback sources are disabled.");
+            }
 
-            // Extract
+            try
+            {
+                UpdateProgress(p =>
+                {
+                    p.StatusText = "Connecting to verified game-data source...";
+                    p.IsDownloading = true;
+                    p.Progress = 0;
+                });
+
+                while (_speedSamples.TryDequeue(out _)) { }
+
+                await DownloadFileAsync(url, localZip, ct);
+
+                if (!File.Exists(localZip))
+                    throw new IOException("Download failed - file not created");
+
+                var fileInfo = new FileInfo(localZip);
+                if (fileInfo.Length == 0)
+                    throw new IOException("Download failed - file is empty");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                SafeDeleteFile(localZip);
+                throw new InvalidOperationException("Failed to download game data from the configured HTTPS source.", ex);
+            }
+
             UpdateProgress(p =>
             {
                 p.StatusText = "Extracting...";
