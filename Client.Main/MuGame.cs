@@ -179,7 +179,20 @@ namespace Client.Main
             // (Ensure necessary using for TargetProtocolVersion is present)
             if (settings == null) { logger.LogError("❌ Failed to load config from 'MuOnlineSettings'."); return false; }
             bool isValid = true;
-            if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort == 0) { logger.LogError("❌ Connect Server host/port invalid."); isValid = false; }
+            if (settings.UseMobileBackend)
+            {
+                if (!Uri.TryCreate(settings.BackendBaseUrl, UriKind.Absolute, out var backendUri) ||
+                    (backendUri.Scheme != Uri.UriSchemeHttps && backendUri.Scheme != Uri.UriSchemeHttp))
+                {
+                    logger.LogError("❌ BackendBaseUrl must be a valid absolute HTTP(S) URL.");
+                    isValid = false;
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort < 1 || settings.ConnectServerPort > 65535)
+            {
+                logger.LogError("❌ Connect Server host/port invalid. Configure a real host and a TCP port from 1 to 65535 in appsettings.json or appsettings.local.json.");
+                isValid = false;
+            }
             if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
             { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<TargetProtocolVersion>())); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
@@ -344,9 +357,7 @@ namespace Client.Main
             if (AppSettings == null || !ValidateSettings(AppSettings, bootLogger)) // Add validation
             {
                 bootLogger.LogCritical("❌ Invalid application settings found in appsettings.json. Shutting down.");
-#if !IOS
-                Exit(); // Stop the game if settings are invalid
-#endif
+                Exit(); // Stop on every platform when the required server endpoint is not configured.
                 return;
             }
             bootLogger.LogInformation("✅ Configuration loaded.");

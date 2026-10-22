@@ -3,8 +3,9 @@ name: Build and Publish
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -15,6 +16,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: OpenGL
@@ -27,49 +29,35 @@ jobs:
             artifact: muonline-windows-directx
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           include-prerelease: true
-
       - name: Restore tools
         run: dotnet tool restore
-
-      - name: Publish ${{ matrix.name }} Build
+      - name: Publish Windows build
         run: dotnet publish ${{ matrix.project }} -c Release -r win-x64 -o publish-${{ matrix.name }} -p:MonoGameFramework=${{ matrix.framework }}
-
-      - name: Create Zip
-        run: powershell -Command "Compress-Archive -Path publish-${{ matrix.name }}\* -DestinationPath ${{ matrix.artifact }}.zip"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Archive build
+        run: Compress-Archive -Path publish-${{ matrix.name }}\* -DestinationPath ${{ matrix.artifact }}.zip
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.zip
+          if-no-files-found: error
 
   build-android:
     runs-on: windows-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           include-prerelease: true
-      
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-      
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
           packages: |
@@ -78,120 +66,90 @@ jobs:
             build-tools;35.0.0
             ndk;27.2.12479018
           accept-android-sdk-licenses: true
-
-      - name: Install dotnet android workload
+      - name: Install .NET Android workload
         run: dotnet workload install android
-      
-      - name: Restore dotnet tools
+      - name: Restore .NET tools
         run: dotnet tool restore
-      
-      - name: Restore dependencies
-        run: dotnet restore MuAndroid/MuAndroid.csproj -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT
-
-      - name: Clean project
-        run: dotnet clean MuAndroid/MuAndroid.csproj -c Release -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT
-      
-      - name: Build Android APK
-        run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT -p:AcceptAndroidSdkLicenses=true
-      
       - name: Publish Android APK
-        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT -p:AcceptAndroidSdkLicenses=true
-      
-      - name: Create Zip for Android
-        run: powershell -Command "Compress-Archive -Path publish-android\*.apk -DestinationPath muonline-android.zip"
-      
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT -p:AcceptAndroidSDKLicenses=true
+      - name: Verify APK exists
+        shell: pwsh
+        run: |
+          $apk = Get-ChildItem publish-android -Filter *.apk -Recurse
+          if (-not $apk) { throw "dotnet publish completed but no APK was produced." }
+          Compress-Archive -Path $apk.FullName -DestinationPath muonline-android.zip
+      - uses: actions/upload-artifact@v4
         with:
           name: muonline-android
           path: muonline-android.zip
+          if-no-files-found: error
 
   build-linux:
-    runs-on: windows-latest
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           include-prerelease: true
-
-      - name: Restore tools
-        run: dotnet tool restore
-
-      - name: Publish Linux Build
+      - run: dotnet tool restore
+      - name: Publish Linux build
         run: dotnet publish MuLinux/MuLinux.csproj -c Release -r linux-x64 -o publish-linux
-
-      - name: Create Zip
-        run: powershell -Command "Compress-Archive -Path publish-linux\* -DestinationPath muonline-linux.zip"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Archive build
+        run: cd publish-linux && zip -r ../muonline-linux.zip .
+      - uses: actions/upload-artifact@v4
         with:
           name: muonline-linux
           path: muonline-linux.zip
+          if-no-files-found: error
 
   build-macos:
-    runs-on: windows-latest
-
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           include-prerelease: true
-
-      - name: Restore tools
-        run: dotnet tool restore
-
-      - name: Publish macOS Build
-        run: dotnet publish MuMac/MuMac.csproj -c Release -r osx-x64 -o publish-macos
-
-      - name: Create Zip
-        run: powershell -Command "Compress-Archive -Path publish-macos\* -DestinationPath muonline-macos.zip"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - run: dotnet tool restore
+      - name: Publish macOS build
+        run: dotnet publish MuMac/MuMac.csproj -c Release -r osx-arm64 -o publish-macos
+      - name: Archive build
+        run: cd publish-macos && zip -r ../muonline-macos.zip .
+      - uses: actions/upload-artifact@v4
         with:
           name: muonline-macos
           path: muonline-macos.zip
+          if-no-files-found: error
 
-  build-ios:
-    runs-on: windows-latest
-
+  build-ios-simulator:
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
           include-prerelease: true
-
       - name: Install iOS workload
         run: dotnet workload install ios
-
-      - name: Restore tools
-        run: dotnet tool restore
-
-      - name: Build iOS Simulator (unsigned)
-        run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r iossimulator-x64 -p:EnableCodeSigning=false
-
-      - name: Create Zip
-        run: powershell -Command "Compress-Archive -Path MuIos\bin\Release\net10.0-ios\iossimulator-x64\* -DestinationPath muonline-ios.zip"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - run: dotnet tool restore
+      - name: Build iOS simulator target
+        run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r iossimulator-arm64 -p:EnableCodeSigning=false
+      - name: Archive simulator output
+        run: |
+          OUTPUT="MuIos/bin/Release/net10.0-ios/iossimulator-arm64"
+          test -d "$OUTPUT"
+          cd "$OUTPUT"
+          zip -r "$GITHUB_WORKSPACE/muonline-ios-simulator.zip" .
+      - uses: actions/upload-artifact@v4
         with:
-          name: muonline-ios
-          path: muonline-ios.zip
+          name: muonline-ios-simulator
+          path: muonline-ios-simulator.zip
+          if-no-files-found: error
 
   pages:
-    needs: [build-windows, build-android, build-linux, build-macos, build-ios]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-windows, build-android, build-linux, build-macos, build-ios-simulator]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -199,76 +157,32 @@ jobs:
     concurrency:
       group: pages
       cancel-in-progress: false
-
     steps:
-      - name: Download OpenGL Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: muonline-windows-opengl
+          pattern: muonline-*
           path: artifacts
-
-      - name: Download DirectX Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: muonline-windows-directx
-          path: artifacts
-
-      - name: Download Android Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: muonline-android
-          path: artifacts
-
-      - name: Download Linux Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: muonline-linux
-          path: artifacts
-
-      - name: Download macOS Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: muonline-macos
-          path: artifacts
-
-      - name: Download iOS Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: muonline-ios
-          path: artifacts
-
+          merge-multiple: true
       - name: Prepare site
         run: |
           mkdir -p site
           cp artifacts/* site/
-          cd site
-          echo '<html><body><h1>MuOnline Builds</h1>' > index.html
-          echo '<h2>Windows Builds</h2>' >> index.html
-          echo '<ul>' >> index.html
-          echo '<li><a href="muonline-windows-opengl.zip">Windows (OpenGL) - Compatible with older hardware</a></li>' >> index.html
-          echo '<li><a href="muonline-windows-directx.zip">Windows (DirectX 11) - Better performance on modern GPUs</a></li>' >> index.html
-          echo '</ul>' >> index.html
-          echo '<h2>Linux Build</h2>' >> index.html
-          echo '<ul>' >> index.html
-          echo '<li><a href="muonline-linux.zip">Linux (DesktopGL) - Packaged on Windows for MGCB compatibility</a></li>' >> index.html
-          echo '</ul>' >> index.html
-          echo '<h2>macOS Build</h2>' >> index.html
-          echo '<ul>' >> index.html
-          echo '<li><a href="muonline-macos.zip">macOS (DesktopGL) - Packaged on Windows for MGCB compatibility</a></li>' >> index.html
-          echo '</ul>' >> index.html
-          echo '<h2>iOS Build</h2>' >> index.html
-          echo '<ul>' >> index.html
-          echo '<li><a href="muonline-ios.zip">iOS (Simulator, unsigned) - Requires macOS to run</a></li>' >> index.html
-          echo '</ul>' >> index.html
-          echo '<h2>Mobile Builds</h2>' >> index.html
-          echo '<ul>' >> index.html
-          echo '<li><a href="muonline-android.zip">Android APK</a></li>' >> index.html
-          echo '</ul>' >> index.html
-          echo '</body></html>' >> index.html
-
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MU Online builds</title></head>
+          <body><main><h1>MU Online client builds</h1>
+          <p>These are build artifacts, not a guarantee that a compatible game server is configured.</p>
+          <ul>
+          <li><a href="muonline-windows-opengl.zip">Windows OpenGL</a></li>
+          <li><a href="muonline-windows-directx.zip">Windows DirectX</a></li>
+          <li><a href="muonline-android.zip">Android APK</a></li>
+          <li><a href="muonline-linux.zip">Linux</a></li>
+          <li><a href="muonline-macos.zip">macOS</a></li>
+          <li><a href="muonline-ios-simulator.zip">iOS Simulator (not installable on a physical iPhone)</a></li>
+          </ul></main></body></html>
+          HTML
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
-
       - id: deployment
         uses: actions/deploy-pages@v4

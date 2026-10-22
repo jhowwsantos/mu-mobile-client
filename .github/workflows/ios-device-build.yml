@@ -1,0 +1,90 @@
+name: iOS Device Build (Unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - setup/server-config-and-mobile-readiness
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-device:
+    runs-on: macos-15-intel
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install native MonoGame content dependencies
+        shell: bash
+        run: |
+          brew update
+          brew install freeimage freetype
+          FREETYPE_LIB="$(brew --prefix freetype)/lib"
+          FREEIMAGE_LIB="$(brew --prefix freeimage)/lib"
+          echo "$FREETYPE_LIB" >> "$GITHUB_PATH"
+          echo "$FREEIMAGE_LIB" >> "$GITHUB_PATH"
+          echo "DYLD_LIBRARY_PATH=$FREETYPE_LIB:$FREEIMAGE_LIB:${DYLD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          if [ -f "$FREETYPE_LIB/libfreetype.dylib" ] && [ ! -e "$FREETYPE_LIB/libfreetype6.dylib" ]; then
+            ln -s "$FREETYPE_LIB/libfreetype.dylib" "$FREETYPE_LIB/libfreetype6.dylib"
+          fi
+
+      - name: Install Wine from maintained tap for MonoGame shaders
+        shell: bash
+        run: |
+          brew tap philberthfz/wine
+          # Homebrew 7 requires third-party casks to be explicitly trusted.
+          # Trust only the transitive cask that the Wine installer needs.
+          brew trust --cask philberthfz/wine/gstreamer-runtime
+          brew install --cask philberthfz/wine/wine-stable
+          brew install winetricks
+          WINE_PREFIX="$HOME/.wine-mgfxc"
+          mkdir -p "$WINE_PREFIX"
+          echo "WINEPREFIX=$WINE_PREFIX" >> "$GITHUB_ENV"
+          echo "MGFXC_WINE_PATH=$WINE_PREFIX" >> "$GITHUB_ENV"
+          export WINEPREFIX="$WINE_PREFIX"
+          export WINEARCH=win64
+          wineboot --init
+          winetricks -q d3dcompiler_47 dotnet8
+          wineboot --shutdown
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Build for physical iPhone (unsigned)
+        run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r ios-arm64 -p:EnableCodeSigning=false
+
+      - name: Package unsigned app bundle for inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find MuIos/bin/Release/net10.0-ios -type d -name '*.app' -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No iOS .app bundle was produced."
+            find MuIos/bin/Release/net10.0-ios -maxdepth 5 -print || true
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" muonline-ios-device-unsigned.zip
+          echo "Built bundle: $APP_PATH"
+          echo "This artifact is unsigned and cannot be installed directly on an iPhone."
+
+      - name: Upload unsigned build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-ios-device-unsigned
+          path: muonline-ios-device-unsigned.zip
+          if-no-files-found: error
+          retention-days: 7

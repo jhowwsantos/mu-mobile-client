@@ -9,8 +9,8 @@
     <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
-  <!-- Enable AOT only for platforms that support it (not iOS simulator) -->
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'iossimulator-x64' AND '$(RuntimeIdentifier)' != 'iossimulator-arm64' AND '$(TargetFramework)' != 'net10.0-ios'">
+  <!-- Enable AOT only for platforms that support it; iOS uses its own AOT pipeline. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'iossimulator-x64' AND '$(RuntimeIdentifier)' != 'iossimulator-arm64' AND '$(RuntimeIdentifier)' != 'ios-arm64' AND '$(TargetFramework)' != 'net10.0-ios'">
     <PublishAot>true</PublishAot>
   </PropertyGroup>
 
