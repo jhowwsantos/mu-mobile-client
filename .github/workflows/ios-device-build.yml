@@ -20,11 +20,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install native MonoGame content dependencies
+        shell: bash
         run: |
           brew update
-          brew install freeimage
-          echo "$(brew --prefix freeimage)/lib" >> "$GITHUB_PATH"
-          echo "DYLD_LIBRARY_PATH=$(brew --prefix freeimage)/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          brew install freeimage freetype
+          FREETYPE_LIB="$(brew --prefix freetype)/lib"
+          FREEIMAGE_LIB="$(brew --prefix freeimage)/lib"
+          echo "$FREETYPE_LIB" >> "$GITHUB_PATH"
+          echo "$FREEIMAGE_LIB" >> "$GITHUB_PATH"
+          echo "DYLD_LIBRARY_PATH=$FREETYPE_LIB:$FREEIMAGE_LIB:${DYLD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+          # MonoGame's bundled SharpFont loader looks for this legacy library name.
+          if [ -f "$FREETYPE_LIB/libfreetype.dylib" ] && [ ! -e "$FREETYPE_LIB/libfreetype6.dylib" ]; then
+            ln -s "$FREETYPE_LIB/libfreetype.dylib" "$FREETYPE_LIB/libfreetype6.dylib"
+          fi
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
