@@ -37,6 +37,9 @@ jobs:
         shell: bash
         run: |
           brew tap philberthfz/wine
+          # Homebrew 7 requires third-party casks to be explicitly trusted.
+          # Trust only the transitive cask that the Wine installer needs.
+          brew trust --cask philberthfz/wine/gstreamer-runtime
           brew install --cask philberthfz/wine/wine-stable
           brew install winetricks
           WINE_PREFIX="$HOME/.wine-mgfxc"
