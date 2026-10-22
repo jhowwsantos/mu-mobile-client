@@ -21,7 +21,7 @@ The repository's `appsettings.local.json` is optional and is loaded after `appse
 
 ## Game data
 
-The hard-coded `http://192.168.55.220/Data.zip` URL has been removed from `Constants.DataPathUrl`. That address was private to a local network and could not be a reliable public download URL. Before shipping, decide whether the required data is bundled with the app or hosted at a verified HTTPS location. Verify that the data archive matches this client and that you have rights to distribute it. Do not automatically substitute a random MU data archive.
+The hard-coded `http://192.168.55.220/Data.zip` URL has been removed from `Constants.DataPathUrl`. That address was private to a local network and could not be a reliable public download URL. The loader no longer silently falls back to a Webzen archive: if local assets are missing and no verified HTTPS data URL is configured, it stops with a clear configuration error. Before shipping, decide whether the required data is bundled with the app or hosted at a verified HTTPS location. Verify that the data archive matches this client and that you have rights to distribute it. Do not automatically substitute a random MU data archive.
 
 ## CI and build artifacts
 
