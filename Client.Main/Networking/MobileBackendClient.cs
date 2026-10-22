@@ -81,6 +81,18 @@ namespace Client.Main.Networking
             return result.Character;
         }
 
+        public async Task<IReadOnlyList<BackendMonster>> GetMonstersAsync(string map = "lorencia", CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(map) || map.Contains('/') || map.Contains('\\\\'))
+                throw new ArgumentException("Map name is invalid.", nameof(map));
+
+            using var request = CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/world/{Uri.EscapeDataString(map)}/monsters");
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+            var result = await response.Content.ReadFromJsonAsync<MonsterListResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
+            return result?.Monsters ?? Array.Empty<BackendMonster>();
+        }
+
         public async Task ConnectRealtimeAsync(CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(_token))
@@ -171,6 +183,10 @@ namespace Client.Main.Networking
 
         private sealed record CreateCharacterResponse(
             [property: JsonPropertyName("character")] BackendCharacter Character);
+
+        private sealed record MonsterListResponse(
+            [property: JsonPropertyName("map")] string Map,
+            [property: JsonPropertyName("monsters")] List<BackendMonster> Monsters);
     }
 
     public sealed class AuthResponse
@@ -196,4 +212,15 @@ namespace Client.Main.Networking
         [JsonPropertyName("position_x")] public double PositionX { get; init; }
         [JsonPropertyName("position_y")] public double PositionY { get; init; }
     }
+}
+public sealed class BackendMonster
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("type")] public string Type { get; init; } = string.Empty;
+    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("x")] public double X { get; init; }
+    [JsonPropertyName("y")] public double Y { get; init; }
+    [JsonPropertyName("currentHp")] public int CurrentHp { get; init; }
+    [JsonPropertyName("maxHp")] public int MaxHp { get; init; }
+    [JsonPropertyName("respawnAt")] public DateTimeOffset? RespawnAt { get; init; }
 }
