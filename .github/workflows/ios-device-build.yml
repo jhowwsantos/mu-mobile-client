@@ -1,0 +1,57 @@
+name: iOS Device Build (Unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - setup/server-config-and-mobile-readiness
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-device:
+    runs-on: macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
+      - name: Build for physical iPhone (unsigned)
+        run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r ios-arm64 -p:EnableCodeSigning=false
+
+      - name: Package unsigned app bundle for inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find MuIos/bin/Release/net10.0-ios -type d -name '*.app' -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No iOS .app bundle was produced."
+            find MuIos/bin/Release/net10.0-ios -maxdepth 5 -print || true
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" muonline-ios-device-unsigned.zip
+          echo "Built bundle: $APP_PATH"
+          echo "This artifact is unsigned and cannot be installed directly on an iPhone."
+
+      - name: Upload unsigned build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-ios-device-unsigned
+          path: muonline-ios-device-unsigned.zip
+          if-no-files-found: error
+          retention-days: 7
