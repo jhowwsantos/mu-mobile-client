@@ -19,6 +19,13 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Install native MonoGame content dependencies
+        run: |
+          brew update
+          brew install freeimage
+          echo "$(brew --prefix freeimage)/lib" >> "$GITHUB_PATH"
+          echo "DYLD_LIBRARY_PATH=$(brew --prefix freeimage)/lib:$DYLD_LIBRARY_PATH" >> "$GITHUB_ENV"
+
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:
