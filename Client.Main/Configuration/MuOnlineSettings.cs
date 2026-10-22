@@ -126,6 +126,9 @@ namespace Client.Main.Configuration
         public string ConnectServerHost { get; set; } = "127.0.0.1";
         public int ConnectServerPort { get; set; } = 44405;
 
+        // HTTP/Socket.IO backend used by the existing MU Mobile server project.
+        public string BackendBaseUrl { get; set; } = "https://mu-mobile-server.onrender.com";
+
         // Client/Protocol Settings
         public string ProtocolVersion { get; set; } = nameof(TargetProtocolVersion.Season6); // Use nameof for safety
         public string ClientVersion { get; set; } = "2.04d"; // Matches SourceMain5.2 default
