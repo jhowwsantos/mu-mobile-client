@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.16" />
+    <PackageReference Include="SocketIOClient" Version="4.0.5" />
     <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.8" />
     <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.8" ExcludeAssets="contentFiles" />
     <PackageReference Include="NLayer" Version="1.16.0" />
