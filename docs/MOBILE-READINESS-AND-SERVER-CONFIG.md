@@ -29,11 +29,12 @@ The build workflow now assigns Windows builds to Windows runners, Linux to Ubunt
 
 The iOS job currently builds an **unsigned iOS Simulator artifact** for CI validation. It is not an installable iPhone release. Physical-device distribution still requires a device-target build, Apple signing credentials/provisioning, and a deliberate release workflow. Do not label the simulator zip as an iPhone IPA.
 
+## Client adaptation in progress
+
+`Client.Main/Networking/MobileBackendClient.cs` now provides a separate HTTP/Socket.IO transport foundation for the existing web backend: account registration/login, character listing/creation, authenticated realtime connection, character selection, movement, and attack events. `MuOnlineSettings.BackendBaseUrl` points at the identified Render service. The legacy MU Season 6 TCP transport remains separate and is not a substitute for this adapter.
+
+This transport layer is **not yet wired into the login/character/game scenes** and has not been build-tested in CI. Therefore it must not be described as a playable integration yet. The next implementation step is to route the native client flow through this adapter, map the server character/world state to the existing renderer, and handle the server events in the game loop. The current backend only has a starter world/combat model, so it will not provide full classic MU functionality without additional server work.
+
 ## Remaining compatibility gate
 
-These repository changes remove an unverified private endpoint, validate endpoint configuration, and fix runner selection in CI. They do not implement a MU TCP server and do not make the Socket.IO web backend speak MU Season 6. Before calling the game playable on Android/iPhone, either:
-
-1. identify and verify an existing server that supports the exact packet protocol/version this client expects, or
-2. implement/adapt a backend with that protocol and test login, server list, character selection, and gameplay end-to-end.
-
-A successful compilation alone does not prove server compatibility.
+These changes remove an unverified private endpoint, validate endpoint configuration, and begin adapting the client to the actual HTTP/Socket.IO backend rather than pretending it is a native MU TCP server. Before calling the game playable on Android/iPhone, wire the adapter into the UI/game scenes, test account/character/realtime flows against the deployed backend, run platform builds, and verify gameplay end-to-end. A successful compilation alone does not prove server compatibility.
