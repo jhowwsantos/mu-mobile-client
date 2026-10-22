@@ -83,7 +83,7 @@ namespace Client.Main.Networking
 
         public async Task<IReadOnlyList<BackendMonster>> GetMonstersAsync(string map = "lorencia", CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(map) || map.Contains('/') || map.Contains('\\\\'))
+            if (string.IsNullOrWhiteSpace(map) || map.Contains('/') || map.Contains('\\'))
                 throw new ArgumentException("Map name is invalid.", nameof(map));
 
             using var request = CreateAuthenticatedRequest(HttpMethod.Get, $"api/v1/world/{Uri.EscapeDataString(map)}/monsters");
