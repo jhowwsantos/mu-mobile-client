@@ -122,6 +122,9 @@ namespace Client.Main.Configuration
 
     public class MuOnlineSettings
     {
+        // Select the HTTP/Socket.IO backend instead of the classic MU Season 6 TCP Connect Server.
+        public bool UseMobileBackend { get; set; } = true;
+
         // Connect Server Settings
         public string ConnectServerHost { get; set; } = "127.0.0.1";
         public int ConnectServerPort { get; set; } = 44405;
