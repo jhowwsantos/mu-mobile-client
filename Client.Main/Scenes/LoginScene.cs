@@ -33,6 +33,7 @@ namespace Client.Main.Scenes
         private bool _dayNightPatched;
 
         private NetworkManager _networkManager;
+        private MobileBackendClient _backendClient;
         private ILogger<LoginScene> _logger;
         private bool _uiInitialized = false; // Flag for one-time UI initialization
 
@@ -125,7 +126,17 @@ namespace Client.Main.Scenes
             UpdateStatusLabel(_networkManager.CurrentState);
 
             progressCallback?.Invoke("Checking Connection State...", 0.80f);
-            if (_networkManager.CurrentState == ClientConnectionState.Initial ||
+            if (MuGame.AppSettings?.UseMobileBackend == true)
+            {
+                _logger.LogInformation("Mobile HTTP/Socket.IO backend mode enabled.");
+                _backendClient ??= new MobileBackendClient(MuGame.AppSettings.BackendBaseUrl);
+                _loginDialog.Visible = true;
+                _loginDialog.BringToFront();
+                _loginDialog.FocusUsername();
+                if (_statusLabel != null)
+                    _statusLabel.Text = "Status: Enter your MU Mobile account";
+            }
+            else if (_networkManager.CurrentState == ClientConnectionState.Initial ||
                 _networkManager.CurrentState == ClientConnectionState.Disconnected)
             {
                 _logger.LogInformation("LoginScene loaded, initiating connection to Connect Server...");
@@ -161,6 +172,11 @@ namespace Client.Main.Scenes
             _logger?.LogDebug("Disposing LoginScene, unsubscribing from network events.");
             UnsubscribeFromNetworkEvents();
             RestoreDayNightCycle();
+            if (_backendClient != null)
+            {
+                _ = _backendClient.DisposeAsync();
+                _backendClient = null;
+            }
             base.Dispose();
         }
 
@@ -350,18 +366,25 @@ namespace Client.Main.Scenes
             }
         }
 
-        private void LoginDialog_LoginAttempt(object sender, EventArgs e)
+        private async void LoginDialog_LoginAttempt(object sender, EventArgs e)
         {
+            string username = _loginDialog.Username?.Trim() ?? string.Empty;
+            string password = _loginDialog.Password ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+            {
+                MessageWindow.Show("Please enter Username and Password.");
+                return;
+            }
+
+            if (MuGame.AppSettings?.UseMobileBackend == true)
+            {
+                await LoginWithMobileBackendAsync(username, password);
+                return;
+            }
+
             if (_networkManager.CurrentState == ClientConnectionState.ConnectedToGameServer ||
                 _networkManager.CurrentState == ClientConnectionState.Authenticating)
             {
-                string username = _loginDialog.Username;
-                string password = _loginDialog.Password;
-                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-                {
-                    MessageWindow.Show("Please enter Username and Password.");
-                    return;
-                }
                 _logger.LogInformation("Login attempt from dialog for user: {Username}", username);
                 _ = _networkManager.SendLoginRequestAsync(username, password);
             }
@@ -369,6 +392,51 @@ namespace Client.Main.Scenes
             {
                 _logger.LogWarning("Login attempt ignored, invalid state: {State}", _networkManager.CurrentState);
                 MessageWindow.Show($"Cannot login in state: {_networkManager.CurrentState}");
+            }
+        }
+
+        private async Task LoginWithMobileBackendAsync(string username, string password)
+        {
+            try
+            {
+                _backendClient ??= new MobileBackendClient(MuGame.AppSettings.BackendBaseUrl);
+                if (_statusLabel != null) _statusLabel.Text = "Status: Connecting to MU Mobile...";
+                var auth = await _backendClient.LoginAsync(username, password);
+                _logger.LogInformation("Authenticated with MU Mobile backend as {Username}", auth.Player.Username);
+
+                var characters = await _backendClient.GetCharactersAsync();
+                if (characters.Count == 0)
+                {
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        if (_statusLabel != null) _statusLabel.Text = "Status: Account has no characters";
+                        MessageWindow.Show("Login successful, but this account has no characters yet. Character creation UI is not connected in this client build.");
+                    });
+                    return;
+                }
+
+                await _backendClient.ConnectRealtimeAsync();
+                var selectedCharacter = characters[0];
+                await _backendClient.SelectCharacterAsync(selectedCharacter.Id);
+                var monsters = await _backendClient.GetMonstersAsync(selectedCharacter.Map);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    if (_statusLabel != null)
+                    {
+                        _statusLabel.Text = $"Status: Backend connected | {selectedCharacter.Name} Lv.{selectedCharacter.Level} | Monsters: {monsters.Count}";
+                    }
+                    MessageWindow.Show($"Connected to MU Mobile backend. Character: {selectedCharacter.Name}. The 3D gameplay scene is not yet connected to the new backend.");
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MU Mobile backend login failed.");
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    if (_statusLabel != null) _statusLabel.Text = "Status: Backend connection failed";
+                    MessageWindow.Show($"MU Mobile connection failed: {ex.Message}");
+                });
             }
         }
 
