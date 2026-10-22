@@ -1,5 +1,7 @@
+#nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -12,9 +14,8 @@ using SocketIOClient;
 namespace Client.Main.Networking
 {
     /// <summary>
-    /// HTTP and Socket.IO transport for the existing MU Mobile web backend.
-    /// This is intentionally separate from the classic Season 6 TCP transport:
-    /// the Render service exposes HTTP/Socket.IO, not a native MU ConnectServer.
+    /// HTTP and Socket.IO transport for the existing MU Mobile backend.
+    /// This transport does not replace the classic Season 6 TCP transport.
     /// </summary>
     public sealed class MobileBackendClient : IAsyncDisposable
     {
@@ -41,7 +42,7 @@ namespace Client.Main.Networking
 
         public async Task<AuthResponse> LoginAsync(string username, string password, CancellationToken cancellationToken = default)
         {
-            var response = await _http.PostAsJsonAsync("api/v1/auth/login",
+            using var response = await _http.PostAsJsonAsync("api/v1/auth/login",
                 new CredentialsRequest(username, password), cancellationToken).ConfigureAwait(false);
             await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
             var result = await response.Content.ReadFromJsonAsync<AuthResponse>(cancellationToken: cancellationToken).ConfigureAwait(false)
@@ -52,7 +53,7 @@ namespace Client.Main.Networking
 
         public async Task<AuthResponse> RegisterAsync(string username, string password, CancellationToken cancellationToken = default)
         {
-            var response = await _http.PostAsJsonAsync("api/v1/auth/register",
+            using var response = await _http.PostAsJsonAsync("api/v1/auth/register",
                 new CredentialsRequest(username, password), cancellationToken).ConfigureAwait(false);
             await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
             var result = await response.Content.ReadFromJsonAsync<AuthResponse>(cancellationToken: cancellationToken).ConfigureAwait(false)
@@ -67,7 +68,7 @@ namespace Client.Main.Networking
             using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
             var result = await response.Content.ReadFromJsonAsync<CharacterListResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result?.Characters ?? Array.Empty<BackendCharacter>();
+            return result?.Characters?.ToArray() ?? Array.Empty<BackendCharacter>();
         }
 
         public async Task<BackendCharacter> CreateCharacterAsync(string name, string characterClass, CancellationToken cancellationToken = default)
@@ -90,7 +91,7 @@ namespace Client.Main.Networking
             using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
             var result = await response.Content.ReadFromJsonAsync<MonsterListResponse>(cancellationToken: cancellationToken).ConfigureAwait(false);
-            return result?.Monsters ?? Array.Empty<BackendMonster>();
+            return result?.Monsters?.ToArray() ?? Array.Empty<BackendMonster>();
         }
 
         public async Task ConnectRealtimeAsync(CancellationToken cancellationToken = default)
@@ -99,7 +100,7 @@ namespace Client.Main.Networking
                 throw new InvalidOperationException("Log in before connecting to the game socket.");
 
             await DisconnectRealtimeAsync().ConfigureAwait(false);
-            _socket = new SocketIO(_baseUri.AbsoluteUri, new SocketIOOptions
+            _socket = new SocketIO(_baseUri, new SocketIOOptions
             {
                 Auth = new { token = _token },
                 Reconnection = true,
@@ -147,7 +148,7 @@ namespace Client.Main.Networking
         {
             if (_socket is null || !_socket.Connected)
                 throw new InvalidOperationException("The game socket is not connected.");
-            return _socket.EmitAsync(eventName, payload);
+            return _socket.EmitAsync(eventName, new object[] { payload });
         }
 
         private HttpRequestMessage CreateAuthenticatedRequest(HttpMethod method, string path)
@@ -216,15 +217,16 @@ namespace Client.Main.Networking
         [JsonPropertyName("position_x")] public double PositionX { get; init; }
         [JsonPropertyName("position_y")] public double PositionY { get; init; }
     }
-}
-public sealed class BackendMonster
-{
-    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
-    [JsonPropertyName("type")] public string Type { get; init; } = string.Empty;
-    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
-    [JsonPropertyName("x")] public double X { get; init; }
-    [JsonPropertyName("y")] public double Y { get; init; }
-    [JsonPropertyName("currentHp")] public int CurrentHp { get; init; }
-    [JsonPropertyName("maxHp")] public int MaxHp { get; init; }
-    [JsonPropertyName("respawnAt")] public DateTimeOffset? RespawnAt { get; init; }
+
+    public sealed class BackendMonster
+    {
+        [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+        [JsonPropertyName("type")] public string Type { get; init; } = string.Empty;
+        [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+        [JsonPropertyName("x")] public double X { get; init; }
+        [JsonPropertyName("y")] public double Y { get; init; }
+        [JsonPropertyName("currentHp")] public int CurrentHp { get; init; }
+        [JsonPropertyName("maxHp")] public int MaxHp { get; init; }
+        [JsonPropertyName("respawnAt")] public DateTimeOffset? RespawnAt { get; init; }
+    }
 }
