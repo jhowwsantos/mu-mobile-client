@@ -114,7 +114,11 @@ namespace Client.Main.Networking
             })
             {
                 var capturedName = eventName;
-                _socket.On(capturedName, response => ServerEvent?.Invoke(capturedName, response.ToString()));
+                _socket.On(capturedName, response =>
+                {
+                    ServerEvent?.Invoke(capturedName, response.RawText);
+                    return Task.CompletedTask;
+                });
             }
 
             cancellationToken.ThrowIfCancellationRequested();
