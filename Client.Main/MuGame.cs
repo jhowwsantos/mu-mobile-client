@@ -179,7 +179,7 @@ namespace Client.Main
             // (Ensure necessary using for TargetProtocolVersion is present)
             if (settings == null) { logger.LogError("❌ Failed to load config from 'MuOnlineSettings'."); return false; }
             bool isValid = true;
-            if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort == 0) { logger.LogError("❌ Connect Server host/port invalid."); isValid = false; }
+            if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort < 1 || settings.ConnectServerPort > 65535) { logger.LogError("❌ Connect Server host/port invalid. Configure a real host and a TCP port from 1 to 65535 in appsettings.json or appsettings.local.json."); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
             { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<TargetProtocolVersion>())); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
